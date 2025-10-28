@@ -85,7 +85,7 @@ export interface LeaderboardEntry {
 export interface Next2025Preset {
   id: string;
   name: string;
-  axis: 'X' | 'Y' | 'Z';
+  axis: ('X' | 'Y' | 'Z')[]; // Array de eixos (1 ou 2 eixos)
   duration: number; // em segundos
   description: string;
   createdAt: string;
@@ -974,7 +974,7 @@ export async function addPointsToNext2025Band(
  */
 export async function createNext2025Preset(presetData: {
   name: string;
-  axis: 'X' | 'Y' | 'Z';
+  axis: ('X' | 'Y' | 'Z')[]; // Array de 1 ou 2 eixos
   duration: number;
   description: string;
 }): Promise<{ success: boolean; presetId?: string; error?: any }> {
@@ -1013,7 +1013,13 @@ export async function getNext2025Presets(): Promise<Next2025Preset[]> {
     }
     
     const presets = snapshot.val();
-    return Object.values(presets) as Next2025Preset[];
+    const presetArray = Object.values(presets) as Next2025Preset[];
+    
+    // Normalizar axis para sempre ser um array (migração de dados antigos)
+    return presetArray.map(preset => ({
+      ...preset,
+      axis: Array.isArray(preset.axis) ? preset.axis : [preset.axis]
+    }));
   } catch (error) {
     console.error('Error fetching presets:', error);
     return [];
@@ -1032,7 +1038,13 @@ export async function getNext2025Preset(presetId: string): Promise<Next2025Prese
       return null;
     }
     
-    return snapshot.val() as Next2025Preset;
+    const preset = snapshot.val() as Next2025Preset;
+    
+    // Normalizar axis para sempre ser um array (migração de dados antigos)
+    return {
+      ...preset,
+      axis: Array.isArray(preset.axis) ? preset.axis : [preset.axis]
+    };
   } catch (error) {
     console.error('Error fetching preset:', error);
     return null;
