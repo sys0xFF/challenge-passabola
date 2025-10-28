@@ -11,8 +11,8 @@ import {
 interface Next2025AuthContextType {
   user: Next2025User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: any }>;
-  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: any }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; user?: Next2025User; error?: any }>;
+  register: (name: string, email: string, password: string) => Promise<{ success: boolean; user?: Next2025User; error?: any }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -53,7 +53,7 @@ export function Next2025AuthProvider({ children }: { children: React.ReactNode }
       if (result.success && result.user) {
         setUser(result.user);
         localStorage.setItem('next2025UserId', result.user.id);
-        return { success: true };
+        return { success: true, user: result.user };
       }
       
       const errorMessage = typeof result.error === 'string' 
