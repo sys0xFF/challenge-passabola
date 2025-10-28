@@ -12,7 +12,7 @@ import { MovementPreset } from './band-service';
 export interface GameRound {
   movement: string;
   duration: number; // em segundos
-  axis: 'X' | 'Y' | 'Z';
+  axis: ('X' | 'Y' | 'Z')[]; // Array de eixos (1 ou 2)
   preset?: MovementPreset;
 }
 
@@ -52,6 +52,7 @@ export interface GameEvent {
   winner?: 'band010' | 'band020' | 'tie';
   round1Winner?: 'band010' | 'band020' | 'tie';
   round2Winner?: 'band010' | 'band020' | 'tie';
+  autoUnlinkBands?: boolean; // Se true, desvincula as pulseiras após o jogo
   // Mantém bands por compatibilidade temporária, mas será removido em breve
   bands?: {
     band010?: GameBand;
@@ -65,7 +66,8 @@ export interface GameEvent {
 export async function createGameEvent(
   rounds: GameRound[],
   band010: Omit<GameBand, 'points' | 'color'>,
-  band020: Omit<GameBand, 'points' | 'color'>
+  band020: Omit<GameBand, 'points' | 'color'>,
+  autoUnlinkBands: boolean = false
 ): Promise<{ success: boolean; eventId?: string; error?: any }> {
   try {
     const eventRef = ref(database, 'gameEvents/currentEvent');
@@ -104,10 +106,11 @@ export async function createGameEvent(
       createdAt: new Date().toISOString(),
       rounds,
       currentRound: 0,
+      autoUnlinkBands, // Adiciona a opção de auto-desvincular
       // Apenas IDs das pulseiras - dados dos usuários vêm do Firebase em tempo real
       bandIds: {
-        band010: '010',
-        band020: '020'
+        band010: band010.bandId, // Usa o ID real da banda selecionada
+        band020: band020.bandId  // Usa o ID real da banda selecionada
       },
       // Mantém bands por compatibilidade temporária
       bands: {
