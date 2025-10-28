@@ -56,7 +56,7 @@ export interface MovementPreset {
   id: string
   name: string
   description: string
-  axis: 'X' | 'Y' | 'Z'
+  axis: ('X' | 'Y' | 'Z')[] // Array de eixos (1 ou 2)
   duration: number // em segundos
   threshold?: number
 }
@@ -67,7 +67,7 @@ export const MOVEMENT_PRESETS: MovementPreset[] = [
     id: 'jump_vertical',
     name: 'Pulos Verticais',
     description: 'Conta pulos verticais usando o eixo Y',
-    axis: 'Y',
+    axis: ['Y'],
     duration: 60,
     threshold: 2.0
   },
@@ -75,7 +75,7 @@ export const MOVEMENT_PRESETS: MovementPreset[] = [
     id: 'run_horizontal',
     name: 'Corrida Horizontal',
     description: 'Detecta movimento horizontal usando o eixo X',
-    axis: 'X',
+    axis: ['X'],
     duration: 120,
     threshold: 1.5
   },
@@ -83,7 +83,7 @@ export const MOVEMENT_PRESETS: MovementPreset[] = [
     id: 'side_steps',
     name: 'Passos Laterais',
     description: 'Movimento lateral usando o eixo Z',
-    axis: 'Z',
+    axis: ['Z'],
     duration: 90,
     threshold: 1.8
   },
@@ -91,7 +91,7 @@ export const MOVEMENT_PRESETS: MovementPreset[] = [
     id: 'quick_jumps',
     name: 'Pulos Rápidos',
     description: 'Pulos rápidos e baixos - eixo Y',
-    axis: 'Y',
+    axis: ['Y'],
     duration: 30,
     threshold: 1.2
   },
@@ -99,7 +99,7 @@ export const MOVEMENT_PRESETS: MovementPreset[] = [
     id: 'march_forward',
     name: 'Marcha Frontal',
     description: 'Marcha para frente - eixo X',
-    axis: 'X',
+    axis: ['X'],
     duration: 180,
     threshold: 1.0
   }
