@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Força a rota a ser dinâmica (não fazer pre-render no build)
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const DEVICE_API_BASE_URL = "http://156.67.25.64:4041/iot/devices"
 
 export async function GET() {

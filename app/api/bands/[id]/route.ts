@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNext2025Settings } from '@/lib/next2025-service'
 
+// Força a rota a ser dinâmica (não fazer pre-render no build)
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const BAND_API_BASE_URL = "http://156.67.25.64:1026/v2/entities"
 
 export async function GET(

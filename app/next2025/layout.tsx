@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Next2025AuthProvider, useNext2025Auth } from '@/contexts/next2025-auth-context';
 import { Next2025BottomNav } from '@/components/next2025/bottom-nav';
@@ -8,7 +8,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { linkBandToNext2025User } from '@/lib/next2025-service';
 import { toast } from 'sonner';
 
-function AuthGuard({ children }: { children: React.ReactNode }) {
+function AuthGuardContent({ children }: { children: React.ReactNode }) {
   const { user, loading } = useNext2025Auth();
   const router = useRouter();
   const pathname = usePathname();
@@ -87,6 +87,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       {children}
       {!shouldHideNav && <Next2025BottomNav />}
     </>
+  );
+}
+
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    }>
+      <AuthGuardContent>{children}</AuthGuardContent>
+    </Suspense>
   );
 }
 
