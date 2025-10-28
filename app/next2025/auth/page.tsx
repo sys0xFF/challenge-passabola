@@ -1,16 +1,18 @@
 "use client"
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { useNext2025Auth } from '@/contexts/next2025-auth-context'
+import { linkBandToNext2025User } from '@/lib/next2025-service'
 import { toast } from 'sonner'
-import { UserCircle, Mail, Lock, User, LogIn, UserPlus, Loader2 } from 'lucide-react'
+import { UserCircle, Mail, Lock, User, LogIn, UserPlus, Loader2, Link as LinkIcon } from 'lucide-react'
 import { Bebas_Neue } from 'next/font/google'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const bebasNeue = Bebas_Neue({
   subsets: ['latin'],
@@ -22,9 +24,11 @@ type AuthMode = 'login' | 'register'
 
 export default function AuthPage() {
   const router = useRouter()
-  const { login, register } = useNext2025Auth()
+  const searchParams = useSearchParams()
+  const { login, register, user } = useNext2025Auth()
   const [activeTab, setActiveTab] = useState<AuthMode>('login')
   const [authLoading, setAuthLoading] = useState(false)
+  const [bandIdToLink, setBandIdToLink] = useState<string | null>(null)
   
   const [loginData, setLoginData] = useState({
     email: '',
@@ -38,16 +42,67 @@ export default function AuthPage() {
     confirmPassword: '',
   })
 
+  // Capturar bandId da URL ao carregar
+  useEffect(() => {
+    const bandId = searchParams.get('bandId')
+    if (bandId) {
+      setBandIdToLink(bandId)
+      toast.info(`Após o login, a pulseira ${bandId} será vinculada à sua conta`)
+    }
+  }, [searchParams])
+
+  // Função para vincular pulseira após autenticação
+  const handleBandLinking = async (userId: string) => {
+    if (!bandIdToLink) return
+
+    console.log('handleBandLinking chamado. UserId:', userId, 'BandId:', bandIdToLink) // DEBUG
+
+    try {
+      const result = await linkBandToNext2025User(bandIdToLink, userId) // ORDEM CORRETA: bandId, userId
+      console.log('Resultado da vinculação:', result) // DEBUG
+      
+      if (result.success) {
+        toast.success(`Pulseira ${bandIdToLink} vinculada com sucesso!`)
+      } else {
+        toast.error(result.error || 'Erro ao vincular pulseira')
+      }
+    } catch (error) {
+      console.error('Erro ao vincular pulseira:', error)
+      toast.error('Erro ao vincular pulseira')
+    }
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setAuthLoading(true)
     
     try {
-      await login(loginData.email, loginData.password)
-      toast.success('Login realizado com sucesso!')
-      router.push('/next2025')
-      setLoginData({ email: '', password: '' })
+      const result = await login(loginData.email, loginData.password)
+      console.log('Login result:', result) // DEBUG
+      
+      if (result.success) {
+        toast.success('Login realizado com sucesso!')
+        
+        // Vincular pulseira se houver bandId na URL
+        if (bandIdToLink) {
+          const userId = result.user?.id
+          console.log('Tentando vincular pulseira. UserId:', userId, 'BandId:', bandIdToLink) // DEBUG
+          
+          if (userId) {
+            await handleBandLinking(userId)
+          } else {
+            console.error('UserId não encontrado no result:', result) // DEBUG
+            toast.error('Erro: Usuário não encontrado para vincular pulseira')
+          }
+        }
+        
+        router.push('/next2025')
+        setLoginData({ email: '', password: '' })
+      } else {
+        toast.error(result.error || 'Credenciais inválidas')
+      }
     } catch (error: any) {
+      console.error('Login error:', error) // DEBUG
       toast.error(error.message || 'Credenciais inválidas')
     } finally {
       setAuthLoading(false)
@@ -80,11 +135,32 @@ export default function AuthPage() {
     }
 
     try {
-      await register(registerData.name, registerData.email, registerData.password)
-      toast.success('Conta criada com sucesso!')
-      router.push('/next2025')
-      setRegisterData({ name: '', email: '', password: '', confirmPassword: '' })
+      const result = await register(registerData.name, registerData.email, registerData.password)
+      console.log('Register result:', result) // DEBUG
+      
+      if (result.success) {
+        toast.success('Conta criada com sucesso!')
+        
+        // Vincular pulseira se houver bandId na URL
+        if (bandIdToLink) {
+          const userId = result.user?.id
+          console.log('Tentando vincular pulseira após registro. UserId:', userId, 'BandId:', bandIdToLink) // DEBUG
+          
+          if (userId) {
+            await handleBandLinking(userId)
+          } else {
+            console.error('UserId não encontrado no result:', result) // DEBUG
+            toast.error('Erro: Usuário não encontrado para vincular pulseira')
+          }
+        }
+        
+        router.push('/next2025')
+        setRegisterData({ name: '', email: '', password: '', confirmPassword: '' })
+      } else {
+        toast.error(result.error || 'Não foi possível criar a conta')
+      }
     } catch (error: any) {
+      console.error('Register error:', error) // DEBUG
       toast.error(error.message || 'Não foi possível criar a conta')
     } finally {
       setAuthLoading(false)
@@ -115,6 +191,16 @@ export default function AuthPage() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-12 flex items-center justify-center min-h-[calc(100vh-80px)]">
         <div className="w-full max-w-md">
+          {/* Alerta de vinculação de pulseira */}
+          {bandIdToLink && (
+            <Alert className="mb-4 border-[#8e44ad] bg-purple-50 dark:bg-purple-950/20">
+              <LinkIcon className="h-4 w-4 text-[#8e44ad]" />
+              <AlertDescription className="text-sm text-gray-700 dark:text-gray-300">
+                Após fazer login ou criar sua conta, a pulseira <strong>{bandIdToLink}</strong> será vinculada automaticamente.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Card */}
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             {/* Header */}
@@ -220,14 +306,14 @@ export default function AuthPage() {
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="register-name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Nome completo
+                      Nome
                     </Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         id="register-name"
                         type="text"
-                        placeholder="Seu nome completo"
+                        placeholder="Seu nome"
                         className="pl-10 h-11"
                         value={registerData.name}
                         onChange={(e) => setRegisterData(prev => ({ ...prev, name: e.target.value }))}
