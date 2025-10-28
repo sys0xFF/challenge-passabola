@@ -1,15 +1,18 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Next2025AuthProvider, useNext2025Auth } from '@/contexts/next2025-auth-context';
 import { Next2025BottomNav } from '@/components/next2025/bottom-nav';
 import { Toaster } from '@/components/ui/sonner';
+import { linkBandToNext2025User } from '@/lib/next2025-service';
+import { toast } from 'sonner';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useNext2025Auth();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // Rotas públicas que não precisam de autenticação
   const publicRoutes = ['/next2025/auth', '/next2025/game-display'];
@@ -25,6 +28,32 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading) {
+      // Verificar se há bandId na URL e usuário está logado
+      const bandId = searchParams.get('bandId');
+      
+      if (user && bandId && pathname === '/next2025/auth') {
+        // Usuário já logado acessou link de vinculação
+        const linkBand = async () => {
+          try {
+            const result = await linkBandToNext2025User(bandId, user.id);
+            if (result.success) {
+              toast.success(`Pulseira ${bandId} vinculada com sucesso!`);
+            } else {
+              toast.error(result.error || 'Erro ao vincular pulseira');
+            }
+          } catch (error) {
+            console.error('Erro ao vincular pulseira:', error);
+            toast.error('Erro ao vincular pulseira');
+          } finally {
+            // Redirecionar para home após tentar vincular
+            router.push('/next2025');
+          }
+        };
+        
+        linkBand();
+        return;
+      }
+      
       if (!user && !isPublicRoute) {
         router.push('/next2025/auth');
       } else if (user && isPublicRoute && !shouldNotRedirect) {
@@ -32,7 +61,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading, isPublicRoute]);
+  }, [user, loading, isPublicRoute, pathname, searchParams]);
 
   // Mostrar loading apenas em rotas protegidas
   if (loading && !isPublicRoute) {
