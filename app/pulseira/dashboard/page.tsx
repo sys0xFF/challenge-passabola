@@ -48,6 +48,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 import { 
   Activity,
   ArrowLeft, 
@@ -88,7 +89,7 @@ interface EventStatus {
   isRunning: boolean
   selectedPreset?: MovementPreset
   customDuration?: number
-  customAxis?: 'X' | 'Y' | 'Z'
+  customAxis?: ('X' | 'Y' | 'Z')[] // Array agora
   startTime?: number
   duration?: number
 }
@@ -134,7 +135,7 @@ export default function BandDashboard() {
   const [editingPreset, setEditingPreset] = useState<Next2025Preset | null>(null)
   const [presetFormData, setPresetFormData] = useState({
     name: '',
-    axis: 'Y' as 'X' | 'Y' | 'Z',
+    axis: ['Y'] as ('X' | 'Y' | 'Z')[], // Array de eixos
     duration: 30,
     description: ''
   })
@@ -145,6 +146,7 @@ export default function BandDashboard() {
   const [presetSelectionMode, setPresetSelectionMode] = useState<'manual' | 'random'>('manual')
   const [round1PresetId, setRound1PresetId] = useState<string>('')
   const [round2PresetId, setRound2PresetId] = useState<string>('')
+  const [autoUnlinkBands, setAutoUnlinkBands] = useState(false)
   
   // Estados para interface
   const [activeTab, setActiveTab] = useState('overview')
@@ -339,7 +341,7 @@ export default function BandDashboard() {
   const resetPresetForm = () => {
     setPresetFormData({
       name: '',
-      axis: 'Y',
+      axis: ['Y'],
       duration: 30,
       description: ''
     })
@@ -510,7 +512,8 @@ export default function BandDashboard() {
         userId: band2.userId,
         userName: band2.userName,
         userEmail: band2.userEmail
-      }
+      },
+      autoUnlinkBands // Passa a opção de auto-desvincular
     )
     
     if (result.success) {
@@ -591,7 +594,7 @@ export default function BandDashboard() {
       
       let preset: MovementPreset | undefined
       let duration: number
-      let axis: 'X' | 'Y' | 'Z'
+      let axis: ('X' | 'Y' | 'Z')[] // Array agora
       
       if (selectedPreset && selectedPreset !== 'manual') {
         preset = MOVEMENT_PRESETS.find(p => p.id === selectedPreset)
@@ -603,7 +606,7 @@ export default function BandDashboard() {
         axis = preset.axis
       } else {
         duration = parseInt(customDuration)
-        axis = customAxis
+        axis = [customAxis] // Converte para array
         
         if (isNaN(duration) || duration <= 0) {
           setEventMessage('Duração deve ser um número válido maior que zero.')
@@ -1502,7 +1505,11 @@ export default function BandDashboard() {
                         <div className="space-y-3">
                           <div className="flex items-start justify-between">
                             <h3 className="font-semibold text-lg">{preset.name}</h3>
-                            <Badge variant="outline">{preset.axis}</Badge>
+                            <div className="flex gap-1">
+                              {preset.axis.map((axis) => (
+                                <Badge key={axis} variant="outline">{axis}</Badge>
+                              ))}
+                            </div>
                           </div>
                           
                           <p className="text-sm text-muted-foreground line-clamp-2">
@@ -1613,7 +1620,7 @@ export default function BandDashboard() {
                           <SelectContent>
                             {presets.map((preset) => (
                               <SelectItem key={preset.id} value={preset.id}>
-                                {preset.name} ({preset.axis} - {preset.duration}s)
+                                {preset.name} ({preset.axis.join('+')} - {preset.duration}s)
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1629,7 +1636,7 @@ export default function BandDashboard() {
                           <SelectContent>
                             {presets.map((preset) => (
                               <SelectItem key={preset.id} value={preset.id}>
-                                {preset.name} ({preset.axis} - {preset.duration}s)
+                                {preset.name} ({preset.axis.join('+')} - {preset.duration}s)
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1649,6 +1656,26 @@ export default function BandDashboard() {
                       </div>
                     </Card>
                   )}
+                </div>
+
+                {/* Opção de Auto-Desvincular */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="auto-unlink"
+                      checked={autoUnlinkBands}
+                      onCheckedChange={(checked) => setAutoUnlinkBands(checked as boolean)}
+                    />
+                    <Label 
+                      htmlFor="auto-unlink"
+                      className="cursor-pointer text-sm font-medium"
+                    >
+                      Desvincular pulseiras automaticamente após o jogo
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground ml-6">
+                    Quando ativado, as pulseiras 010 e 020 serão desvinculadas automaticamente ao final do jogo, liberando-as para novos vínculos.
+                  </p>
                 </div>
 
                 {/* Botão Iniciar */}
@@ -1715,21 +1742,56 @@ export default function BandDashboard() {
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="preset-axis">Eixo de Movimento</Label>
-              <Select 
-                value={presetFormData.axis} 
-                onValueChange={(value: 'X' | 'Y' | 'Z') => setPresetFormData({ ...presetFormData, axis: value })}
-              >
-                <SelectTrigger id="preset-axis">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="X">Eixo X</SelectItem>
-                  <SelectItem value="Y">Eixo Y</SelectItem>
-                  <SelectItem value="Z">Eixo Z</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-3">
+              <Label>Eixos de Movimento (selecione 1 ou 2)</Label>
+              <div className="space-y-3">
+                {(['X', 'Y', 'Z'] as const).map((axis) => (
+                  <div key={axis} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`axis-${axis}`}
+                      checked={presetFormData.axis.includes(axis)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          // Adiciona o eixo (máximo 2)
+                          if (presetFormData.axis.length < 2) {
+                            setPresetFormData({
+                              ...presetFormData,
+                              axis: [...presetFormData.axis, axis]
+                            })
+                          }
+                        } else {
+                          // Remove o eixo (mínimo 1)
+                          if (presetFormData.axis.length > 1) {
+                            setPresetFormData({
+                              ...presetFormData,
+                              axis: presetFormData.axis.filter(a => a !== axis)
+                            })
+                          }
+                        }
+                      }}
+                      disabled={
+                        !presetFormData.axis.includes(axis) && presetFormData.axis.length >= 2
+                      }
+                    />
+                    <Label 
+                      htmlFor={`axis-${axis}`}
+                      className={`cursor-pointer ${
+                        !presetFormData.axis.includes(axis) && presetFormData.axis.length >= 2
+                          ? 'opacity-50'
+                          : ''
+                      }`}
+                    >
+                      Eixo {axis} {axis === 'X' ? '(Lateral)' : axis === 'Y' ? '(Vertical)' : '(Frontal)'}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {presetFormData.axis.length === 1 
+                  ? '1 eixo selecionado (pode adicionar mais 1)' 
+                  : `${presetFormData.axis.length} eixos selecionados (máximo atingido)`
+                }
+              </p>
             </div>
             
             <div className="space-y-2">
