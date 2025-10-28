@@ -3,21 +3,21 @@
 import { useEffect, useState, useRef } from 'react';
 import { subscribeToGameEvent, updateGameStatus, updateCurrentRound, updateBandPoints, setRoundWinner, setGameWinner, setRoundStartTime, GameEvent, GameBand } from '@/lib/game-service';
 import { getBandScores, startEventForAllBands, stopEventForAllBands, controlBandEvent, BandLink } from '@/lib/band-service';
-import { addPointsToNext2025Band, getTopUsersByVictories, subscribeToBandLink, LeaderboardEntry, addVictoryToUser, getBandLinkInfo } from '@/lib/next2025-service';
+import { addPointsToNext2025Band, getTopUsersByVictories, subscribeToBandLink, LeaderboardEntry, addVictoryToUser, getBandLinkInfo, unlinkNext2025Band } from '@/lib/next2025-service';
 import { Trophy, Zap, Crown, Star } from 'lucide-react';
 
 export default function GameDisplayPage() {
   const [gameEvent, setGameEvent] = useState<GameEvent | null>(null);
   const [countdown, setCountdown] = useState<number>(3);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [band010Points, setBand010Points] = useState<number>(0);
-  const [band020Points, setBand020Points] = useState<number>(0);
+  const [band1Points, setBand1Points] = useState<number>(0);
+  const [band2Points, setBand2Points] = useState<number>(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   
   // States para dados em tempo real das pulseiras
-  const [band010Info, setBand010Info] = useState<BandLink | null>(null);
-  const [band020Info, setBand020Info] = useState<BandLink | null>(null);
+  const [band1Info, setBand1Info] = useState<BandLink | null>(null);
+  const [band2Info, setBand2Info] = useState<BandLink | null>(null);
   
   const statusRef = useRef<string>('');
   const roundStartTimeRef = useRef<number>(0);
@@ -26,26 +26,29 @@ export default function GameDisplayPage() {
 
   // Escutar mudanças nas pulseiras vinculadas em tempo real
   useEffect(() => {
-    if (!gameEvent) return;
+    if (!gameEvent || !gameEvent.bandIds) return;
     
     console.log('Iniciando listeners das pulseiras...');
     
-    // Listener para band 010
-    const unsubscribe010 = subscribeToBandLink('010', (bandLink) => {
-      console.log('Band 010 atualizada:', bandLink);
-      setBand010Info(bandLink);
+    const band1Id = gameEvent.bandIds.band010; // Nome mantido para compatibilidade
+    const band2Id = gameEvent.bandIds.band020;
+    
+    // Listener para band 1
+    const unsubscribe1 = subscribeToBandLink(band1Id, (bandLink) => {
+      console.log(`Band ${band1Id} atualizada:`, bandLink);
+      setBand1Info(bandLink);
     });
     
-    // Listener para band 020
-    const unsubscribe020 = subscribeToBandLink('020', (bandLink) => {
-      console.log('Band 020 atualizada:', bandLink);
-      setBand020Info(bandLink);
+    // Listener para band 2
+    const unsubscribe2 = subscribeToBandLink(band2Id, (bandLink) => {
+      console.log(`Band ${band2Id} atualizada:`, bandLink);
+      setBand2Info(bandLink);
     });
     
     return () => {
       console.log('Parando listeners das pulseiras');
-      unsubscribe010();
-      unsubscribe020();
+      unsubscribe1();
+      unsubscribe2();
     };
   }, [gameEvent?.id]); // Re-inscreve quando o ID do jogo mudar
 
@@ -72,8 +75,8 @@ export default function GameDisplayPage() {
         statusRef.current = '';
         setShowLeaderboard(false);
         setLeaderboardData([]);
-        setBand010Points(0);
-        setBand020Points(0);
+        setBand1Points(0);
+        setBand2Points(0);
         setCountdown(3);
         setTimeRemaining(0);
       }
@@ -237,42 +240,48 @@ export default function GameDisplayPage() {
   };
 
   const startRound1 = async () => {
-    if (!gameEvent) return;
+    if (!gameEvent || !gameEvent.bandIds) return;
     
     const startTime = Date.now();
     await setRoundStartTime(startTime);
     await updateGameStatus('round1_active');
-    setBand010Points(0);
-    setBand020Points(0);
+    setBand1Points(0);
+    setBand2Points(0);
+    
+    const band1Id = gameEvent.bandIds.band010;
+    const band2Id = gameEvent.bandIds.band020;
     
     // Iniciar evento nas pulseiras
-    await startEventForAllBands(['010', '020']);
+    await startEventForAllBands([band1Id, band2Id]);
   };
 
   const finishRound1 = async () => {
-    if (!gameEvent) return;
+    if (!gameEvent || !gameEvent.bandIds) return;
     
     console.log('Finalizando Round 1');
     
+    const band1Id = gameEvent.bandIds.band010;
+    const band2Id = gameEvent.bandIds.band020;
+    
     // Parar pulseiras
-    await stopEventForAllBands(['010', '020']);
+    await stopEventForAllBands([band1Id, band2Id]);
     
     // Aguardar um pouco para garantir que os dados foram coletados
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // Capturar pontos finais
-    const finalPoints010 = await getFinalPoints('010');
-    const finalPoints020 = await getFinalPoints('020');
+    const finalPoints1 = await getFinalPoints(band1Id);
+    const finalPoints2 = await getFinalPoints(band2Id);
     
-    console.log('Round 1 - Band 010:', finalPoints010);
-    console.log('Round 1 - Band 020:', finalPoints020);
+    console.log(`Round 1 - Band ${band1Id}:`, finalPoints1);
+    console.log(`Round 1 - Band ${band2Id}:`, finalPoints2);
     
-    setBand010Points(finalPoints010);
-    setBand020Points(finalPoints020);
+    setBand1Points(finalPoints1);
+    setBand2Points(finalPoints2);
     
     // Determinar vencedor do round
-    const winner = finalPoints010 > finalPoints020 ? 'band010' : 
-                   finalPoints020 > finalPoints010 ? 'band020' : 'tie';
+    const winner = finalPoints1 > finalPoints2 ? 'band010' : 
+                   finalPoints2 > finalPoints1 ? 'band020' : 'tie';
     await setRoundWinner(0, winner);
     
     console.log('Round 1 Finalizado');
@@ -296,7 +305,7 @@ export default function GameDisplayPage() {
   };
 
   const startRound2 = async () => {
-    if (!gameEvent) return;
+    if (!gameEvent || !gameEvent.bandIds) return;
     
     const startTime = Date.now();
     await setRoundStartTime(startTime);
@@ -305,76 +314,108 @@ export default function GameDisplayPage() {
     // NÃO reseta os pontos aqui - mantém os do Round 1
     // Os pontos serão somados em updatePoints()
     
+    const band1Id = gameEvent.bandIds.band010;
+    const band2Id = gameEvent.bandIds.band020;
+    
     // Iniciar evento nas pulseiras
-    await startEventForAllBands(['010', '020']);
+    await startEventForAllBands([band1Id, band2Id]);
   };
 
   const finishRound2 = async () => {
-    if (!gameEvent) return;
+    if (!gameEvent || !gameEvent.bandIds) return;
     
     console.log('Finalizando Round 2');
+    
+    const band1Id = gameEvent.bandIds.band010;
+    const band2Id = gameEvent.bandIds.band020;
     
     // PRIMEIRO: Atualizar o status para 'finished' para parar updatePoints
     await updateGameStatus('finished');
     
     // Parar pulseiras
-    await stopEventForAllBands(['010', '020']);
+    await stopEventForAllBands([band1Id, band2Id]);
     
     // Aguardar um pouco para garantir que os dados foram coletados
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // Capturar pontos finais do round 2
-    const finalPoints010 = await getFinalPoints('010');
-    const finalPoints020 = await getFinalPoints('020');
+    const finalPoints1 = await getFinalPoints(band1Id);
+    const finalPoints2 = await getFinalPoints(band2Id);
     
-    console.log('Round 2 - Band 010:', finalPoints010);
-    console.log('Round 2 - Band 020:', finalPoints020);
+    console.log(`Round 2 - Band ${band1Id}:`, finalPoints1);
+    console.log(`Round 2 - Band ${band2Id}:`, finalPoints2);
     
     // Somar com pontos do round 1
-    const totalPoints010 = band010Points + finalPoints010;
-    const totalPoints020 = band020Points + finalPoints020;
+    const totalPoints1 = band1Points + finalPoints1;
+    const totalPoints2 = band2Points + finalPoints2;
     
-    console.log('Total - Band 010:', totalPoints010);
-    console.log('Total - Band 020:', totalPoints020);
+    console.log(`Total - Band ${band1Id}:`, totalPoints1);
+    console.log(`Total - Band ${band2Id}:`, totalPoints2);
     
-    setBand010Points(totalPoints010);
-    setBand020Points(totalPoints020);
+    setBand1Points(totalPoints1);
+    setBand2Points(totalPoints2);
     
     // Determinar vencedor do round 2
-    const roundWinner = finalPoints010 > finalPoints020 ? 'band010' : 
-                        finalPoints020 > finalPoints010 ? 'band020' : 'tie';
+    const roundWinner = finalPoints1 > finalPoints2 ? 'band010' : 
+                        finalPoints2 > finalPoints1 ? 'band020' : 'tie';
     await setRoundWinner(1, roundWinner);
     
     // Determinar vencedor geral
-    const winner = totalPoints010 > totalPoints020 ? 'band010' : 
-                   totalPoints020 > totalPoints010 ? 'band020' : 'tie';
+    const winner = totalPoints1 > totalPoints2 ? 'band010' : 
+                   totalPoints2 > totalPoints1 ? 'band020' : 'tie';
     
     console.log('Vencedor geral:', winner);
     
     await setGameWinner(winner);
     
-    // Adicionar vitória ao vencedor
-    if (winner === 'band010' && (gameEvent.bandIds?.band010 || gameEvent.bands?.band010)) {
-      const bandLink = await getBandLinkInfo('010');
+    // Adicionar vitória ao vencedor (se não for empate)
+    if (winner === 'band010') {
+      const bandLink = await getBandLinkInfo(band1Id);
       if (bandLink) {
         await addVictoryToUser(bandLink.userId, gameEvent.id);
-        console.log('Vitoria adicionada para Band 010:', bandLink.userName);
+        console.log(`✓ Vitoria adicionada para Band ${band1Id}:`, bandLink.userName);
       }
-    } else if (winner === 'band020' && (gameEvent.bandIds?.band020 || gameEvent.bands?.band020)) {
-      const bandLink = await getBandLinkInfo('020');
+    } else if (winner === 'band020') {
+      const bandLink = await getBandLinkInfo(band2Id);
       if (bandLink) {
         await addVictoryToUser(bandLink.userId, gameEvent.id);
-        console.log('Vitoria adicionada para Band 020:', bandLink.userName);
+        console.log(`✓ Vitoria adicionada para Band ${band2Id}:`, bandLink.userName);
       }
     }
     
-    // Adicionar pontos aos usuários NEXT 2025
-    // Usa os IDs das pulseiras do evento
-    if (gameEvent.bandIds?.band010 || gameEvent.bands?.band010) {
-      await addPointsToNext2025Band('010', totalPoints010, 'Pontos ganhos no Jogo de Movimento');
+    // Adicionar pontos aos usuários NEXT 2025 (SEMPRE, para ambas as bandas)
+    console.log(`Adicionando pontos - Band ${band1Id}: ${totalPoints1}, Band ${band2Id}: ${totalPoints2}`);
+    
+    try {
+      await addPointsToNext2025Band(band1Id, totalPoints1, 'Pontos ganhos no Jogo de Movimento');
+      console.log(`✓ Pontos adicionados para Band ${band1Id}`);
+    } catch (err) {
+      console.error(`Erro ao adicionar pontos para Band ${band1Id}:`, err);
     }
-    if (gameEvent.bandIds?.band020 || gameEvent.bands?.band020) {
-      await addPointsToNext2025Band('020', totalPoints020, 'Pontos ganhos no Jogo de Movimento');
+    
+    try {
+      await addPointsToNext2025Band(band2Id, totalPoints2, 'Pontos ganhos no Jogo de Movimento');
+      console.log(`✓ Pontos adicionados para Band ${band2Id}`);
+    } catch (err) {
+      console.error(`Erro ao adicionar pontos para Band ${band2Id}:`, err);
+    }
+    
+    // Desvincular pulseiras automaticamente se a opção estiver ativada
+    if (gameEvent.autoUnlinkBands) {
+      console.log('Auto-desvincular ativado, desvinculando pulseiras...');
+      try {
+        await unlinkNext2025Band(band1Id);
+        console.log(`✓ Pulseira ${band1Id} desvinculada`);
+      } catch (err) {
+        console.error(`Erro ao desvincular pulseira ${band1Id}:`, err);
+      }
+      
+      try {
+        await unlinkNext2025Band(band2Id);
+        console.log(`✓ Pulseira ${band2Id} desvinculada`);
+      } catch (err) {
+        console.error(`Erro ao desvincular pulseira ${band2Id}:`, err);
+      }
     }
     
     console.log('Round 2 Finalizado');
@@ -382,28 +423,38 @@ export default function GameDisplayPage() {
 
   const updatePoints = async () => {
     // Para de atualizar se o jogo já terminou
-    if (!gameEvent || gameEvent.status === 'finished') return;
+    if (!gameEvent || gameEvent.status === 'finished' || !gameEvent.bandIds) return;
     if (gameEvent.status !== 'round1_active' && gameEvent.status !== 'round2_active') return;
     
     try {
-      const scores010 = await getBandScores('010');
-      const scores020 = await getBandScores('020');
+      const band1Id = gameEvent.bandIds.band010;
+      const band2Id = gameEvent.bandIds.band020;
+      
+      const scores1 = await getBandScores(band1Id);
+      const scores2 = await getBandScores(band2Id);
       
       const currentRound = gameEvent.rounds[gameEvent.currentRound];
-      const axis = currentRound.axis;
+      const axes = currentRound.axis; // Agora é um array
       
-      const points010 = Math.abs(scores010[`score${axis}`]?.value || 0);
-      const points020 = Math.abs(scores020[`score${axis}`]?.value || 0);
+      // Soma os pontos de todos os eixos ativos
+      let points1 = 0;
+      let points2 = 0;
+      
+      for (const axis of axes) {
+        const key = `score${axis}` as 'scoreX' | 'scoreY' | 'scoreZ';
+        points1 += Math.abs(scores1[key]?.value || 0);
+        points2 += Math.abs(scores2[key]?.value || 0);
+      }
       
       if (gameEvent.status === 'round1_active') {
         // Round 1: apenas seta os pontos
-        setBand010Points(Math.round(points010));
-        setBand020Points(Math.round(points020));
+        setBand1Points(Math.round(points1));
+        setBand2Points(Math.round(points2));
       } else if (gameEvent.status === 'round2_active') {
         // Round 2: NÃO soma aqui! Só mostra os pontos do round 2
         // A soma será feita apenas no finishRound2
-        setBand010Points(Math.round(points010));
-        setBand020Points(Math.round(points020));
+        setBand1Points(Math.round(points1));
+        setBand2Points(Math.round(points2));
       }
     } catch (error) {
       console.error('Error updating points:', error);
@@ -413,8 +464,16 @@ export default function GameDisplayPage() {
   const getFinalPoints = async (bandId: string): Promise<number> => {
     try {
       const scores = await getBandScores(bandId);
-      const axis = gameEvent?.rounds[gameEvent.currentRound].axis || 'Y';
-      return Math.round(Math.abs(scores[`score${axis}`]?.value || 0));
+      const axes = gameEvent?.rounds[gameEvent.currentRound].axis || ['Y'];
+      
+      // Soma os pontos de todos os eixos ativos
+      let totalPoints = 0;
+      for (const axis of axes) {
+        const key = `score${axis}` as 'scoreX' | 'scoreY' | 'scoreZ';
+        totalPoints += Math.abs(scores[key]?.value || 0);
+      }
+      
+      return Math.round(totalPoints);
     } catch (error) {
       console.error('Error getting final points:', error);
       return 0;
@@ -467,22 +526,28 @@ export default function GameDisplayPage() {
   // Extrai dados do evento atual
   const currentRound = gameEvent.rounds[gameEvent.currentRound];
   
+  // Extrai os IDs das pulseiras (dinâmico - pode ser 010/020, 030/040, etc)
+  const band1Id = gameEvent.bandIds?.band010 || '010'; // Fallback para compatibilidade
+  const band2Id = gameEvent.bandIds?.band020 || '020';
+  
+  console.log('🎮 IDs das pulseiras extraídos:', { band1Id, band2Id, bandIds: gameEvent.bandIds });
+  
   // Usa dados em tempo real das pulseiras vinculadas
   // Se não houver dados do Firebase ainda, usa os dados do evento como fallback
-  const band010 = band010Info ? {
-    bandId: '010',
-    userId: band010Info.userId,
-    userName: band010Info.userName,
-    userEmail: band010Info.userEmail,
+  const band1 = band1Info ? {
+    bandId: band1Id,
+    userId: band1Info.userId,
+    userName: band1Info.userName,
+    userEmail: band1Info.userEmail,
     points: 0,
     color: 'blue' as const
   } : gameEvent.bands?.band010 || null;
   
-  const band020 = band020Info ? {
-    bandId: '020',
-    userId: band020Info.userId,
-    userName: band020Info.userName,
-    userEmail: band020Info.userEmail,
+  const band2 = band2Info ? {
+    bandId: band2Id,
+    userId: band2Info.userId,
+    userName: band2Info.userName,
+    userEmail: band2Info.userEmail,
     points: 0,
     color: 'red' as const
   } : gameEvent.bands?.band020 || null;
@@ -751,7 +816,7 @@ export default function GameDisplayPage() {
               <div className="relative inline-block">
                 <div className="absolute inset-0 bg-blue-400 blur-lg opacity-50 animate-pulse"></div>
                 <div className="relative glass-morphism-strong rounded-2xl px-6 py-3 border-2 border-blue-300/50 shadow-2xl">
-                  <p className="text-xl font-black tracking-wide">PULSEIRA 010</p>
+                  <p className="text-xl font-black tracking-wide">PULSEIRA {band1Id}</p>
                 </div>
               </div>
 
@@ -761,8 +826,8 @@ export default function GameDisplayPage() {
                 <div className="relative glass-morphism-strong rounded-2xl p-4 border-2 border-blue-300/40 shadow-2xl">
                   <p className="text-2xl font-bold mb-1" style={{
                     textShadow: '0 0 15px rgba(59, 130, 246, 0.5)'
-                  }}>{band010?.userName}</p>
-                  <p className="text-sm opacity-90">{band010?.userEmail}</p>
+                  }}>{band1?.userName}</p>
+                  <p className="text-sm opacity-90">{band1?.userEmail}</p>
                 </div>
               </div>
 
@@ -785,7 +850,7 @@ export default function GameDisplayPage() {
                       `
                     }}
                   >
-                    {band010Points}
+                    {band1Points}
                   </div>
                   <p className="text-2xl font-black mt-1 tracking-wider text-white" style={{
                     textShadow: '0 0 12px rgba(96, 165, 250, 0.8), 2px 2px 0px rgba(0, 0, 0, 0.3)'
@@ -796,7 +861,7 @@ export default function GameDisplayPage() {
             </div>
           </div>
 
-          {/* Lado VERMELHO - Band 020 */}
+          {/* Lado VERMELHO - Band 2 */}
           <div className="flex-1 bg-gradient-to-br from-red-400 via-rose-600 to-pink-800 flex flex-col items-center justify-center p-12 relative overflow-hidden">
             {/* Partículas decorativas */}
             <div className="absolute inset-0 pointer-events-none">
@@ -814,7 +879,7 @@ export default function GameDisplayPage() {
               <div className="relative inline-block">
                 <div className="absolute inset-0 bg-red-400 blur-lg opacity-50 animate-pulse"></div>
                 <div className="relative glass-morphism-strong rounded-2xl px-6 py-3 border-2 border-red-300/50 shadow-2xl">
-                  <p className="text-xl font-black tracking-wide">PULSEIRA 020</p>
+                  <p className="text-xl font-black tracking-wide">PULSEIRA {band2Id}</p>
                 </div>
               </div>
 
@@ -824,8 +889,8 @@ export default function GameDisplayPage() {
                 <div className="relative glass-morphism-strong rounded-2xl p-4 border-2 border-red-300/40 shadow-2xl">
                   <p className="text-2xl font-bold mb-1" style={{
                     textShadow: '0 0 15px rgba(239, 68, 68, 0.5)'
-                  }}>{band020?.userName}</p>
-                  <p className="text-sm opacity-90">{band020?.userEmail}</p>
+                  }}>{band2?.userName}</p>
+                  <p className="text-sm opacity-90">{band2?.userEmail}</p>
                 </div>
               </div>
 
@@ -848,7 +913,7 @@ export default function GameDisplayPage() {
                       `
                     }}
                   >
-                    {band020Points}
+                    {band2Points}
                   </div>
                   <p className="text-2xl font-black mt-1 tracking-wider text-white" style={{
                     textShadow: '0 0 12px rgba(248, 113, 113, 0.8), 2px 2px 0px rgba(0, 0, 0, 0.3)'
@@ -865,9 +930,9 @@ export default function GameDisplayPage() {
 
   // TELA 4: Resultado Final (5 segundos) ou Leaderboard
   if (gameEvent.status === 'finished') {
-    const totalPoints010 = band010Points;
-    const totalPoints020 = band020Points;
-    const isDraw = totalPoints010 === totalPoints020;
+    const totalPoints1 = band1Points;
+    const totalPoints2 = band2Points;
+    const isDraw = totalPoints1 === totalPoints2;
     const winner = gameEvent.winner;
     
     // Após 5 segundos, mostra o leaderboard
@@ -1310,7 +1375,7 @@ export default function GameDisplayPage() {
           )}
 
           <div className="grid grid-cols-2 gap-8 mt-8 max-w-5xl mx-auto">
-            {/* Band 010 */}
+            {/* Band 1 */}
             <div className={`relative rounded-2xl p-6 border-4 transition-all duration-700 ${
               winner === 'band010'
                 ? 'scale-105 animate-victory'
@@ -1331,7 +1396,7 @@ export default function GameDisplayPage() {
                 winner === 'band010' ? 'border-yellow-400' : 'border-blue-300/40'
               } shadow-2xl`}>
                 <div className="space-y-4">
-                  <div className="text-2xl font-black tracking-wide">PULSEIRA 010</div>
+                  <div className="text-2xl font-black tracking-wide">PULSEIRA {band1Id}</div>
 
                   <div
                     className="text-[5rem] font-black tabular-nums text-white"
@@ -1341,12 +1406,12 @@ export default function GameDisplayPage() {
                         : '0 0 15px rgba(59, 130, 246, 0.5), 3px 3px 0px rgba(0, 0, 0, 0.3)'
                     }}
                   >
-                    {totalPoints010}
+                    {totalPoints1}
                   </div>
 
                   <div className="space-y-1">
-                    <div className="text-xl font-bold">{band010?.userName}</div>
-                    <div className="text-sm opacity-80">{band010?.userEmail}</div>
+                    <div className="text-xl font-bold">{band1?.userName}</div>
+                    <div className="text-sm opacity-80">{band1?.userEmail}</div>
                   </div>
 
                   {winner === 'band010' && (
@@ -1362,7 +1427,7 @@ export default function GameDisplayPage() {
               </div>
             </div>
 
-            {/* Band 020 */}
+            {/* Band 2 */}
             <div className={`relative rounded-2xl p-6 border-4 transition-all duration-700 ${
               winner === 'band020'
                 ? 'scale-105 animate-victory'
@@ -1383,7 +1448,7 @@ export default function GameDisplayPage() {
                 winner === 'band020' ? 'border-yellow-400' : 'border-red-300/40'
               } shadow-2xl`}>
                 <div className="space-y-4">
-                  <div className="text-2xl font-black tracking-wide">PULSEIRA 020</div>
+                  <div className="text-2xl font-black tracking-wide">PULSEIRA {band2Id}</div>
 
                   <div
                     className="text-[5rem] font-black tabular-nums text-white"
@@ -1393,12 +1458,12 @@ export default function GameDisplayPage() {
                         : '0 0 15px rgba(239, 68, 68, 0.5), 3px 3px 0px rgba(0, 0, 0, 0.3)'
                     }}
                   >
-                    {totalPoints020}
+                    {totalPoints2}
                   </div>
 
                   <div className="space-y-1">
-                    <div className="text-xl font-bold">{band020?.userName}</div>
-                    <div className="text-sm opacity-80">{band020?.userEmail}</div>
+                    <div className="text-xl font-bold">{band2?.userName}</div>
+                    <div className="text-sm opacity-80">{band2?.userEmail}</div>
                   </div>
 
                   {winner === 'band020' && (
