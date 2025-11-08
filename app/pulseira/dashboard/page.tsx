@@ -147,6 +147,7 @@ export default function BandDashboard() {
   const [round1PresetId, setRound1PresetId] = useState<string>('')
   const [round2PresetId, setRound2PresetId] = useState<string>('')
   const [autoUnlinkBands, setAutoUnlinkBands] = useState(false)
+  const [autoStartWithFirstAvailable, setAutoStartWithFirstAvailable] = useState(false)
   
   // Estados para interface
   const [activeTab, setActiveTab] = useState('overview')
@@ -422,20 +423,48 @@ export default function BandDashboard() {
   }
   
   const handleStartNext2025GameMode = async () => {
-    // Verificar se as pulseiras selecionadas estão vinculadas
-    const band1 = bandLinks.find(link => link.bandId === band1Selected && link.status === 'linked')
-    const band2 = bandLinks.find(link => link.bandId === band2Selected && link.status === 'linked')
+    // Se modo automático estiver ativado, atualiza lista e pega primeiras 2 disponíveis
+    let band1: BandLink | undefined
+    let band2: BandLink | undefined
     
-    if (!band1 || !band2) {
-      setEventMessage('Ambas as pulseiras devem estar vinculadas!')
-      setTimeout(() => setEventMessage(''), 5000)
-      return
-    }
-    
-    if (band1Selected === band2Selected) {
-      setEventMessage('Selecione pulseiras diferentes para os jogadores!')
-      setTimeout(() => setEventMessage(''), 5000)
-      return
+    if (autoStartWithFirstAvailable) {
+      setEventMessage('Atualizando lista de pulseiras...')
+      
+      // Busca os vínculos diretamente da API (não usa o estado que pode estar desatualizado)
+      const freshBandLinks = await getAllNext2025BandLinks()
+      
+      // Pega as primeiras 2 pulseiras vinculadas disponíveis
+      const availableBands = freshBandLinks.filter(link => link.status === 'linked')
+      
+      if (availableBands.length < 2) {
+        setEventMessage('É necessário ter pelo menos 2 pulseiras vinculadas!')
+        setTimeout(() => setEventMessage(''), 5000)
+        return
+      }
+      
+      band1 = availableBands[0]
+      band2 = availableBands[1]
+      
+      // Atualiza o estado para refletir na UI
+      setBandLinks(freshBandLinks)
+      
+      setEventMessage(`Pulseiras selecionadas automaticamente: ${formatBandId(band1.bandId)} e ${formatBandId(band2.bandId)}`)
+    } else {
+      // Modo manual: verificar se as pulseiras selecionadas estão vinculadas
+      band1 = bandLinks.find(link => link.bandId === band1Selected && link.status === 'linked')
+      band2 = bandLinks.find(link => link.bandId === band2Selected && link.status === 'linked')
+      
+      if (!band1 || !band2) {
+        setEventMessage('Ambas as pulseiras devem estar vinculadas!')
+        setTimeout(() => setEventMessage(''), 5000)
+        return
+      }
+      
+      if (band1Selected === band2Selected) {
+        setEventMessage('Selecione pulseiras diferentes para os jogadores!')
+        setTimeout(() => setEventMessage(''), 5000)
+        return
+      }
     }
     
     // Selecionar presets
@@ -502,13 +531,13 @@ export default function BandDashboard() {
     const result = await createGameEvent(
       rounds,
       {
-        bandId: band1Selected,
+        bandId: band1.bandId,
         userId: band1.userId,
         userName: band1.userName,
         userEmail: band1.userEmail
       },
       {
-        bandId: band2Selected,
+        bandId: band2.bandId,
         userId: band2.userId,
         userName: band2.userName,
         userEmail: band2.userEmail
@@ -1556,40 +1585,42 @@ export default function BandDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Seleção de Pulseiras */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Pulseira 1 (Azul)</Label>
-                    <Select value={band1Selected} onValueChange={setBand1Selected}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {bandLinks.filter(l => l.status === 'linked').map((link) => (
-                          <SelectItem key={link.bandId} value={link.bandId}>
-                            {formatBandId(link.bandId)} - {link.userName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                {/* Seleção de Pulseiras - oculto quando modo automático está ativo */}
+                {!autoStartWithFirstAvailable && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Pulseira 1 (Azul)</Label>
+                      <Select value={band1Selected} onValueChange={setBand1Selected}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bandLinks.filter(l => l.status === 'linked').map((link) => (
+                            <SelectItem key={link.bandId} value={link.bandId}>
+                              {formatBandId(link.bandId)} - {link.userName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Pulseira 2 (Vermelho)</Label>
+                      <Select value={band2Selected} onValueChange={setBand2Selected}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bandLinks.filter(l => l.status === 'linked').map((link) => (
+                            <SelectItem key={link.bandId} value={link.bandId}>
+                              {formatBandId(link.bandId)} - {link.userName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Pulseira 2 (Vermelho)</Label>
-                    <Select value={band2Selected} onValueChange={setBand2Selected}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {bandLinks.filter(l => l.status === 'linked').map((link) => (
-                          <SelectItem key={link.bandId} value={link.bandId}>
-                            {formatBandId(link.bandId)} - {link.userName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                )}
 
                 {/* Modo de Seleção de Presets */}
                 <div className="space-y-4">
@@ -1658,6 +1689,26 @@ export default function BandDashboard() {
                   )}
                 </div>
 
+                {/* Opção de Auto-Iniciar */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="auto-start"
+                      checked={autoStartWithFirstAvailable}
+                      onCheckedChange={(checked) => setAutoStartWithFirstAvailable(checked as boolean)}
+                    />
+                    <Label 
+                      htmlFor="auto-start"
+                      className="cursor-pointer text-sm font-medium"
+                    >
+                      Iniciar automaticamente com as primeiras pulseiras disponíveis
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground ml-6">
+                    Quando ativado, o jogo será iniciado automaticamente com as 2 primeiras pulseiras vinculadas, sem precisar selecionar manualmente. Ideal para eventos com alto volume de jogadores.
+                  </p>
+                </div>
+
                 {/* Opção de Auto-Desvincular */}
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
@@ -1674,7 +1725,7 @@ export default function BandDashboard() {
                     </Label>
                   </div>
                   <p className="text-xs text-muted-foreground ml-6">
-                    Quando ativado, as pulseiras 010 e 020 serão desvinculadas automaticamente ao final do jogo, liberando-as para novos vínculos.
+                    Quando ativado, as pulseiras serão desvinculadas automaticamente ao final do jogo, liberando-as para novos vínculos.
                   </p>
                 </div>
 
@@ -1685,15 +1736,17 @@ export default function BandDashboard() {
                     disabled={
                       gameMode || 
                       presets.length < 2 ||
-                      !band1Selected ||
-                      !band2Selected ||
-                      band1Selected === band2Selected ||
+                      (!autoStartWithFirstAvailable && (
+                        !band1Selected ||
+                        !band2Selected ||
+                        band1Selected === band2Selected
+                      )) ||
                       (presetSelectionMode === 'manual' && (!round1PresetId || !round2PresetId || round1PresetId === round2PresetId))
                     }
                     size="lg"
                   >
                     <Trophy className="h-4 w-4 mr-2" />
-                    {gameMode ? 'Jogo em Andamento' : 'Iniciar Modo de Jogo'}
+                    {gameMode ? 'Jogo em Andamento' : autoStartWithFirstAvailable ? 'Iniciar Jogo Automático' : 'Iniciar Modo de Jogo'}
                   </Button>
                 </div>
 

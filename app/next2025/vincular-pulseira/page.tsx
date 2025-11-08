@@ -68,6 +68,14 @@ export default function VincularPulseiraPage() {
   const handleLinkBand = async (bandId: string) => {
     if (!user) return;
 
+    // Mostra aviso que vinculação só é possível via NFC no evento
+    toast.info(
+      'A vinculação de pulseiras só é possível durante o evento, através do nosso PIN NFC. Procure nossa equipe para vincular sua pulseira!',
+      { duration: 5000 }
+    );
+    return;
+
+    /* Lógica de vinculação manual comentada - só é permitida via NFC no evento
     setActionLoading(bandId);
     try {
       const result = await linkBandToNext2025User(bandId, user.id);
@@ -85,6 +93,7 @@ export default function VincularPulseiraPage() {
     } finally {
       setActionLoading(null);
     }
+    */
   };
 
   const handleUnlinkBand = async (bandId: string) => {
@@ -185,7 +194,7 @@ export default function VincularPulseiraPage() {
             )}
           </div>
 
-          {/* Pulseiras Disponíveis */}
+          {/* Pulseiras Disponíveis - Vinculação apenas via NFC */}
           {availableBands.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -195,7 +204,7 @@ export default function VincularPulseiraPage() {
               
               <div className="space-y-2">
                 {availableBands.map((bandId) => (
-                  <Next2025Card key={bandId} className="p-4">
+                  <Next2025Card key={bandId} className="p-4 opacity-60">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 flex-1">
                         <div className="flex-shrink-0 rounded-full bg-blue-500/10 p-2">
@@ -204,7 +213,7 @@ export default function VincularPulseiraPage() {
                         <div className="flex-1">
                           <p className="font-medium">{formatBandId(bandId)}</p>
                           <p className="text-sm text-muted-foreground">
-                            Disponível para vinculação
+                            Vincule via NFC no evento
                           </p>
                         </div>
                       </div>
@@ -236,13 +245,17 @@ export default function VincularPulseiraPage() {
             <div className="flex gap-3">
               <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-900 dark:text-blue-100">
-                <p className="font-medium mb-1">Como funciona?</p>
+                <p className="font-medium mb-2">Como vincular sua pulseira?</p>
                 <ul className="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-200">
-                  <li>Vincule uma pulseira IoT à sua conta</li>
-                  <li>Participe dos eventos usando a pulseira</li>
-                  <li>Ganhe pontos automaticamente com seus movimentos</li>
-                  <li>Troque pontos por recompensas exclusivas</li>
+                  <li>Procure nossa equipe no evento</li>
+                  <li>Aproxime seu celular do nosso PIN NFC</li>
+                  <li>A pulseira será vinculada automaticamente</li>
+                  <li>Participe dos jogos e ganhe pontos!</li>
+                  <li>Troque seus pontos por recompensas exclusivas</li>
                 </ul>
+                <p className="mt-3 font-medium text-amber-700 dark:text-amber-300">
+                  ⚠️ A vinculação só é possível presencialmente durante o evento através do nosso PIN NFC.
+                </p>
               </div>
             </div>
           </Next2025Card>
