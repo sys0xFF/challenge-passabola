@@ -22,11 +22,6 @@ const navItems = [
     icon: LinkIcon,
   },
   {
-    name: 'Recompensas',
-    href: '/next2025/recompensas',
-    icon: Gift,
-  },
-  {
     name: 'Histórico',
     href: '/next2025/historico',
     icon: History,
